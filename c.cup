@@ -1,0 +1,135 @@
+/*
+  C- Parser for Checkpoint 1
+  Grammar rules only (no embedded code / no AST building).
+*/
+
+/* Parser code: report errors with line and column */
+parser code {:
+    public void report_error(String message, Object info) {
+        StringBuffer m = new StringBuffer("Error");
+        if (info instanceof java_cup.runtime.Symbol) {
+            java_cup.runtime.Symbol s = ((java_cup.runtime.Symbol) info);
+            if (s.left >= 0)
+                m.append(" in line " + (s.left + 1));
+            if (s.right >= 0)
+                m.append(", column " + (s.right + 1));
+        }
+        m.append(" : " + message);
+        System.err.println(m);
+    }
+
+    public void report_fatal_error(String message, Object info) {
+        report_error(message, info);
+        System.exit(1);
+    }
+:};
+
+/* Terminals for C- */
+terminal VOID, INT, IF, ELSE, WHILE, TRUE, FALSE, BOOL, RETURN;
+terminal String ID;
+terminal Integer NUM;
+terminal ASSIGN, EQ, NE, LT, LE, GT, GE, AND, OR;
+terminal PLUS, MINUS, STAR, SLASH, NOT;
+terminal LPAREN, RPAREN, LBRACE, RBRACE, LBRACK, RBRACK, SEMI, COMMA;
+terminal ERROR;
+
+/* Non-terminals */
+non terminal program;
+non terminal declaration_list, declaration;
+non terminal type_specifier;
+non terminal param;
+non terminal params, param_list;
+non terminal optional_decl_list;
+non terminal statement_list, statement;
+non terminal expression;
+non terminal args, arg_list;
+
+
+/* Precedence for expressions */
+precedence nonassoc LT, LE, GT, GE, EQ, NE;
+precedence left PLUS, MINUS;
+precedence left STAR, SLASH;
+
+/* Start symbol */
+start with program;
+
+/* ---------------------------- Grammar Section (rules only) --------------------------- */
+
+program            ::= declaration_list
+                     ;
+
+declaration_list   ::= declaration_list declaration
+                     | declaration
+                     ;
+
+declaration        ::= type_specifier ID SEMI
+                     | type_specifier ID LBRACK NUM RBRACK SEMI
+                     | type_specifier ID LPAREN RPAREN SEMI
+                     | type_specifier ID LPAREN params RPAREN LBRACE optional_decl_list statement_list RBRACE
+                     | type_specifier ID LPAREN VOID RPAREN LBRACE optional_decl_list statement_list RBRACE
+                     | type_specifier ID LPAREN RPAREN LBRACE optional_decl_list statement_list RBRACE
+                     | type_specifier ID LPAREN params RPAREN SEMI
+                     | type_specifier ID LPAREN VOID RPAREN SEMI
+                     ;
+
+optional_decl_list ::= declaration_list
+                     |
+                     ;
+
+type_specifier     ::= INT
+                     | VOID
+                     | BOOL
+                     ;
+
+params             ::= param_list
+                     ;
+
+param_list ::= param_list COMMA param
+             | param
+             ;
+
+param ::= type_specifier ID
+        | type_specifier ID LBRACK RBRACK
+        ;
+
+statement_list     ::= statement_list statement
+                     |
+                     ;
+
+args ::= /* empty */
+       | arg_list
+       ;
+
+arg_list ::= expression
+           | arg_list COMMA expression
+           ;
+
+statement          ::= LBRACE optional_decl_list statement_list RBRACE
+                     | IF LPAREN expression RPAREN statement
+                     | IF LPAREN expression RPAREN statement ELSE statement
+                     | WHILE LPAREN expression RPAREN statement
+                     | RETURN expression SEMI
+                     | RETURN SEMI
+                     | expression SEMI
+                     | SEMI
+                     | error SEMI
+                     | ERROR SEMI
+                     ;
+
+expression         ::= expression EQ expression
+                     | expression NE expression
+                     | expression LT expression
+                     | expression LE expression
+                     | expression GT expression
+                     | expression GE expression
+                     | expression PLUS expression
+                     | expression MINUS expression
+                     | expression STAR expression
+                     | expression SLASH expression
+                     | expression ASSIGN expression
+                     | ID LPAREN args RPAREN
+                     | ID LBRACK expression RBRACK
+                     | LPAREN expression RPAREN
+                     | ID
+                     | NUM
+                     ;
