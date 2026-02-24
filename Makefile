@@ -1,9 +1,12 @@
 # C- Scanner and Parser (Checkpoint 1) — Linux
 # Put java-cup-11b.jar in this directory, or set CUPJAR to its path.
+#
+# Windows local dev (JFlex at C:\jflex):
+#   make JFLEX=C:/jflex/bin/jflex
 
 JAVA   = java
 JAVAC  = javac
-JFLEX  = jflex
+JFLEX  ?= jflex
 CUPJAR = java-cup-11b.jar
 CLASSPATH = -cp .:$(CUPJAR)
 CUP = $(JAVA) $(CLASSPATH) java_cup.Main
