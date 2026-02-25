@@ -11,17 +11,23 @@ CUPJAR = java-cup-11b.jar
 CLASSPATH = -cp .:$(CUPJAR)
 CUP = $(JAVA) $(CLASSPATH) java_cup.Main
 
-all: Main.class
+all: CM
 
-# Build order: CUP generates parser + sym; JFlex needs sym; then compile all
-Main.class: parser.java sym.java Lexer.java Token.java Scanner.java Main.java
-	$(JAVAC) $(CLASSPATH) *.java
+# CM is a script that runs the compiler
+CM: Main.class
+	@echo '#!/bin/sh' > CM
+	@echo 'exec $(JAVA) $(CLASSPATH) Main "$$@"' >> CM
+	@chmod +x CM
+
+# Build order: CUP generates parser + sym; JFlex needs sym; then compile all (including absyn)
+Main.class: parser.java sym.java Lexer.java Token.java Scanner.java Main.java absyn/*.java
+	$(JAVAC) $(CLASSPATH) absyn/*.java *.java
 
 Lexer.java: c.flex sym.java
 	$(JFLEX) c.flex
 
 parser.java sym.java: c.cup
-	$(CUP) -expect 40 c.cup
+	$(CUP) -expect 1 c.cup
 
 # # Test scanner only (no parser): java Scanner [file.cm]
 # # Test full parse: java Main file.cm
@@ -29,7 +35,7 @@ parser.java sym.java: c.cup
 # 	$(JAVA) $(CLASSPATH) Main ../C1-Package/fac.cm
 
 clean:
-	rm -f parser.java sym.java Lexer.java *.class
+	rm -f parser.java sym.java Lexer.java *.class CM
 
 
 
