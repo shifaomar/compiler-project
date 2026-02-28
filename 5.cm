@@ -1,0 +1,15 @@
+/* 
+5.cm
+Tests multiple syntax errors in one run.
+Errors:
+1. missing semicolon after declaration "int x"
+2. invalid parameter list (extra comma in "int a, , int b")
+3. missing right operand in expression "x = 3 + ;"
+Expected behavior: report all errors, recover, and still generate an AST.
+*/
+
+int x
+int f(int a, , int b) {
+  x = 3 + ;
+  return ;
+}

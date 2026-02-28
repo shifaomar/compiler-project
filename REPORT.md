@@ -10,7 +10,7 @@ For Checkpoint One we built a compiler for the C- language that follows the four
 
 You run the compiler with `./CM -a file.cm` and it writes the abstract syntax tree to `file.abs`. We tested it on the five sample programs (fac.cm, booltest.cm, gcd.cm, sort.cm, mutual.cm) and they all parse correctly. The Makefile produces the CM executable, and the README explains how to build and run everything.
 
-[ATHINA: add a short paragraph on what was done for error recovery. For example, you could describe which error productions were added, how multiple errors are reported, and how the five test programs (1.cm through 5.cm) were used to verify that it works.]
+For error recovery, we added CUP recovery productions so the parser will continue after common syntax errors instead of stopping after the first one. Recovery was added for declaration-related errors (including a targeted missing semicolon case after declarations), statement sequences, parameter lists, and binary expressions with missing right operands. We verified this using the required custom test files 1.cm through 5.cm, including a multi-error file (5.cm) that reports several syntax errors in one run and still produces an AST file.
 
 ---
 
@@ -66,7 +66,30 @@ When you pass the `-a` option, Main.java parses the file, gets the Program from 
 
 ### 2.4 Error Recovery
 
-[ATHINA: describe the error recovery design here. You could cover how the first error is reported (token type, value, row, column), where you added `error` productions (declaration sequence, expression sequence, expressions with binary ops, and other structures), how the parser continues after an error to report multiple errors, and maybe an example of running on a file with several errors and what the output looks like.]
+We implemented syntax error recovery in CUP using the special error symbol and a small set of targeted recovery productions. The goal was not to handle every possible malformed input, but to recover from common and obvious syntax mistakes so the parser can continue and report multiple errors in one run.
+
+First, we improved parser error reporting by extending `report_error(...)` so messages include the line number, column number, token type, and token value (when present). This makes syntax errors easier to locate and understand when testing.
+
+For recovery itself, we added productions in several parts of the grammar:
+
+1. Declaration recovery: 
+    A general fallback production (error SEMI) and a targeted case for missing semicolons after simple declarations (type_specifier ID error). The targeted case helps with common inputs such as int x followed by another declaration.
+
+2. Statement sequence recovery: 
+    Recovery in statement_list so an invalid statement can be skipped and later statements in the same block can still be parsed.
+
+3. Parameter list recovery: 
+    Recovery in param_list for malformed parameter lists (for example, an extra comma).
+
+4. Expression recovery: 
+    Targeted recovery for binary expressions with missing right operands (for example, x = 3 + ;).
+
+We also adjusted declaration list construction so recovered invalid declarations (which return null) are skipped when building the AST list. This avoids inserting invalid nodes into the tree and allows later valid declarations to remain in the generated AST.
+
+Testing shows the parser can recover with multiple syntax errors in a single file and continue parsing to generate a partial AST. 
+
+For example: 
+Our 5.cm test file includes a missing semicolon after a declaration, an invalid parameter list, and a missing right operand in an expression. The parser reports all of these errors in one run and writes the AST file. 
 
 ---
 
@@ -78,7 +101,7 @@ Building lists in the right order was another thing we had to think about. For f
 
 Using CUP’s precedence directives instead of extra grammar layers made the grammar simpler and easier to work with. The if else and assignment conflicts are resolved by CUP in the usual way, so we didn’t have to worry about that ourselves.
 
-[ATHINA: add lessons from implementing error recovery. For example, you could talk about where recovery was straightforward versus difficult, the tradeoffs between adding more recovery points and keeping the grammar manageable, and what worked well when testing.]
+Implementing error recovery in CUP taught us that where recovery rules are placed matters as much as the rules themselves. Some recovery points were straightforward (for example, malformed parameter lists and missing expression operands), but others were more difficult because overly broad or overlapping error productions can introduce extra CUP conflicts. Testing also showed that panic-mode recovery can skip more input than expected, so it was important to verify not only that errors were reported, but also that the parser acknowledged enought to produce a meaningful partial AST, without ignoring good code. 
 
 ---
 
@@ -88,7 +111,7 @@ We assume the C-Specification grammar is the source of truth and that input file
 
 There are a few limitations. The scanner doesn’t support line comments `//` yet. The boolean operators (&&, ||, ~) are in the scanner but we haven’t wired them into the expression grammar. Before error recovery, the parser would exit on the first fatal error; with error recovery it continues and reports multiple errors.
 
-[ATHINA: add any assumptions or limitations that are specific to error recovery. For example, you might mention which error cases are not handled or situations where recovery might be incomplete.]
+Our error recovery uses CUP’s panic-mode recovery with a limited set of synchronization points, mainly semicolons and commas. This works well for many common syntax mistakes, but it does not guarantee ideal recovery for every malformed input. Recovery is designed to be practical and reliable for common checkpoint-level errors (such as missing semicolons, malformed parameter lists, and incomplete binary expressions), but heavily corrupted input may still lead to incomplete recovery or termination near EOF.
 
 ---
 
@@ -96,7 +119,8 @@ There are a few limitations. The scanner doesn’t support line comments `//` ye
 
 There are several things we could improve. We could add `//` line comments to the scanner. We could wire up the boolean operators in expressions. We could add more recovery points for edge cases. We could make the error messages more helpful (for example, saying “expected semicolon” instead of just “syntax error”). We could also add a debug mode to show tokens during scanning.
 
-[ATHINA: add any improvements related to error recovery. For example, better sync points, clearer messages, or handling of nested errors.]
+Error recovery could be improved by adding more specialized recovery productions for additional syntactic contexts (for example, malformed blocks or parenthesized expressions) while still keeping the grammar conflict-free.
+
 
 ---
 

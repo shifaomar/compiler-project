@@ -1,0 +1,19 @@
+/* 
+Valid C- program (no errors).
+Tests normal parsing, declarations, assignment, arithmetic, while loop, and function call.
+*/
+
+void main(void) {
+  int x;
+  int sum;
+
+  x = input();
+  sum = 0;
+
+  while (x > 0) {
+    sum = sum + x;
+    x = x - 1;
+  }
+
+  output(sum);
+}

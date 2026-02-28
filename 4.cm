@@ -1,0 +1,10 @@
+/* 
+4.cm
+Tests parameter list recovery.
+Error: extra comma in parameter list "int x, , int y"
+Expected behavior: report invalid parameter and continue parsing function body.
+*/
+
+int f(int x, , int y) {
+  return x;
+}

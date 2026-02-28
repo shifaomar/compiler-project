@@ -1,0 +1,12 @@
+/* 
+3.cm
+Tests expression recovery (missing right operand).
+Error: x = 5 + ;
+Expected behavior: report expression error and continue to next statement.
+*/
+
+int main() {
+  int x;
+  x = 5 + ;
+  x = 10;
+}
