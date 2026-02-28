@@ -88,7 +88,7 @@ NUM = [0-9]+
 /*Catch-all lexical error */
 . {
 	  System.err.println("LEXICAL ERROR: illegal character '" + yytext()
-    + "' at " + (yyline) + ":" + (yycolumn));
+    + "' at " + (yyline + 1) + ":" + (yycolumn + 1));
     return symbol(sym.ERROR, yytext());
 }
 

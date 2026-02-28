@@ -1,7 +1,9 @@
 /*
   C- Parser for Checkpoint 1
-  Grammar rules only (no embedded code / no AST building).
+  Builds abstract syntax tree (AST).
 */
+
+import absyn.*;
 
 /* Parser code: report errors with line and column */
 parser code {:
@@ -22,6 +24,12 @@ parser code {:
         report_error(message, info);
         System.exit(1);
     }
+
+    // helper to add an expr to the end of an arg list (for function calls)
+    private static ExpList appendExpList(ExpList list, Exp e) {
+        if (list == null) return new ExpList(e.row, e.col, e, null);
+        return new ExpList(list.row, list.col, list.head, appendExpList(list.tail, e));
+    }
 :};
 
 /* Terminals for C- */
@@ -33,19 +41,20 @@ terminal PLUS, MINUS, STAR, SLASH, NOT;
 terminal LPAREN, RPAREN, LBRACE, RBRACE, LBRACK, RBRACK, SEMI, COMMA;
 terminal ERROR;
 
-/* Non-terminals */
-non terminal program;
-non terminal declaration_list, declaration;
-non terminal type_specifier;
-non terminal param;
-non terminal params, param_list;
-non terminal optional_decl_list;
-non terminal statement_list, statement;
-non terminal expression;
-non terminal args, arg_list;
+/* non-terminals; each one returns an ast node we build as we parse */
+non terminal Program program;
+non terminal DeclList declaration_list, optional_decl_list;
+non terminal Absyn declaration;
+non terminal Type type_specifier;
+non terminal Param param;
+non terminal ParamList params, param_list;
+non terminal StmtList statement_list;
+non terminal Stmt statement;
+non terminal Exp expression;
+non terminal ExpList args, arg_list;
 
-
-/* Precedence for expressions */
+/* precedence for expressions; assign is right-associative like in c */
+precedence right ASSIGN;
 precedence nonassoc LT, LE, GT, GE, EQ, NE;
 precedence left PLUS, MINUS;
 precedence left STAR, SLASH;
@@ -53,83 +62,136 @@ precedence left STAR, SLASH;
 /* Start symbol */
 start with program;
 
-/* ---------------------------- Grammar Section (rules only) --------------------------- */
+/* ---------------------------- Grammar Section with AST building --------------------------- */
 
-program            ::= declaration_list
+program            ::= declaration_list:d
+                     {: RESULT = new Program(0, 0, d); :}
                      ;
 
-declaration_list   ::= declaration_list declaration
-                     | declaration
+declaration_list   ::= declaration_list:dl declaration:d
+                     {: RESULT = new DeclList(dleft, dright, d, dl); :}
+                     | declaration:d
+                     {: RESULT = new DeclList(dleft, dright, d, null); :}
                      ;
 
-declaration        ::= type_specifier ID SEMI
-                     | type_specifier ID LBRACK NUM RBRACK SEMI
-                     | type_specifier ID LPAREN RPAREN SEMI
-                     | type_specifier ID LPAREN params RPAREN LBRACE optional_decl_list statement_list RBRACE
-                     | type_specifier ID LPAREN VOID RPAREN LBRACE optional_decl_list statement_list RBRACE
-                     | type_specifier ID LPAREN RPAREN LBRACE optional_decl_list statement_list RBRACE
-                     | type_specifier ID LPAREN params RPAREN SEMI
-                     | type_specifier ID LPAREN VOID RPAREN SEMI
+declaration        ::= type_specifier:t ID:i SEMI
+                     {: RESULT = new VarDecl(t.row, t.col, t, i); :}
+                     | type_specifier:t ID:i LBRACK NUM:n RBRACK SEMI
+                     {: RESULT = new ArrayDecl(t.row, t.col, t, i, n.intValue()); :}
+                     | type_specifier:t ID:i LPAREN RPAREN SEMI
+                     {: RESULT = new FunPrototype(t.row, t.col, t, i, null); :}
+                     | type_specifier:t ID:i LPAREN params:p RPAREN LBRACE optional_decl_list:od statement_list:sl RBRACE
+                     {: RESULT = new FunDecl(t.row, t.col, t, i, p, od, sl); :}
+                     | type_specifier:t ID:i LPAREN VOID RPAREN LBRACE optional_decl_list:od statement_list:sl RBRACE
+                     {: RESULT = new FunDecl(t.row, t.col, t, i, null, od, sl); :}
+                     | type_specifier:t ID:i LPAREN RPAREN LBRACE optional_decl_list:od statement_list:sl RBRACE
+                     {: RESULT = new FunDecl(t.row, t.col, t, i, null, od, sl); :}
+                     | type_specifier:t ID:i LPAREN params:p RPAREN SEMI
+                     {: RESULT = new FunPrototype(t.row, t.col, t, i, p); :}
+                     | type_specifier:t ID:i LPAREN VOID RPAREN SEMI
+                     {: RESULT = new FunPrototype(t.row, t.col, t, i, null); :}
                      ;
 
-optional_decl_list ::= declaration_list
+optional_decl_list ::= declaration_list:d
+                     {: RESULT = d; :}
                      |
+                     {: RESULT = null; :}
                      ;
 
-type_specifier     ::= INT
-                     | VOID
-                     | BOOL
+type_specifier     ::= INT:tok
+                     {: RESULT = new Type(tokleft, tokright, Type.INT); :}
+                     | VOID:tok
+                     {: RESULT = new Type(tokleft, tokright, Type.VOID); :}
+                     | BOOL:tok
+                     {: RESULT = new Type(tokleft, tokright, Type.BOOL); :}
                      ;
 
-params             ::= param_list
+params             ::= param_list:p
+                     {: RESULT = p; :}
                      ;
 
-param_list ::= param_list COMMA param
-             | param
+param_list ::= param_list:pl COMMA param:p
+             {: RESULT = new ParamList(pleft, pright, p, pl); :}
+             | param:p
+             {: RESULT = new ParamList(pleft, pright, p, null); :}
              ;
 
-param ::= type_specifier ID
-        | type_specifier ID LBRACK RBRACK
+param ::= type_specifier:t ID:i
+        {: RESULT = new Param(t.row, t.col, t, i, false); :}
+        | type_specifier:t ID:i LBRACK RBRACK
+        {: RESULT = new Param(t.row, t.col, t, i, true); :}
         ;
 
-statement_list     ::= statement_list statement
+statement_list     ::= statement_list:sl statement:s
+                     {: RESULT = new StmtList(sleft, sright, s, sl); :}
                      |
+                     {: RESULT = null; :}
                      ;
 
 args ::= /* empty */
-       | arg_list
+       {: RESULT = null; :}
+       | arg_list:a
+       {: RESULT = a; :}
        ;
 
-arg_list ::= expression
-           | arg_list COMMA expression
+arg_list ::= expression:e
+           {: RESULT = new ExpList(eleft, eright, e, null); :}
+           | arg_list:al COMMA expression:e
+           {: RESULT = appendExpList(al, e); :}
            ;
 
-statement          ::= LBRACE optional_decl_list statement_list RBRACE
-                     | IF LPAREN expression RPAREN statement
-                     | IF LPAREN expression RPAREN statement ELSE statement
-                     | WHILE LPAREN expression RPAREN statement
-                     | RETURN expression SEMI
-                     | RETURN SEMI
-                     | expression SEMI
-                     | SEMI
+statement          ::= LBRACE:lb optional_decl_list:od statement_list:sl RBRACE
+                     {: RESULT = new CompoundStmt(lbleft, lbright, od, sl); :}
+                     | IF:iff LPAREN expression:e RPAREN statement:s
+                     {: RESULT = new IfStmt(iffleft, iffright, e, s, null); :}
+                     | IF:iff LPAREN expression:e RPAREN statement:s1 ELSE statement:s2
+                     {: RESULT = new IfStmt(iffleft, iffright, e, s1, s2); :}
+                     | WHILE:w LPAREN expression:e RPAREN statement:s
+                     {: RESULT = new WhileStmt(wleft, wright, e, s); :}
+                     | RETURN:r expression:e SEMI
+                     {: RESULT = new ReturnStmt(rleft, rright, e); :}
+                     | RETURN:r SEMI
+                     {: RESULT = new ReturnStmt(rleft, rright, null); :}
+                     | expression:e SEMI
+                     {: RESULT = new ExpStmt(eleft, eright, e); :}
+                     | SEMI:s
+                     {: RESULT = new NullStmt(sleft, sright); :}
                      | error SEMI
+                     {: RESULT = new NullStmt(0, 0); :}
                      | ERROR SEMI
+                     {: RESULT = new NullStmt(0, 0); :}
                      ;
 
-expression         ::= expression EQ expression
-                     | expression NE expression
-                     | expression LT expression
-                     | expression LE expression
-                     | expression GT expression
-                     | expression GE expression
-                     | expression PLUS expression
-                     | expression MINUS expression
-                     | expression STAR expression
-                     | expression SLASH expression
-                     | expression ASSIGN expression
-                     | ID LPAREN args RPAREN
-                     | ID LBRACK expression RBRACK
-                     | LPAREN expression RPAREN
-                     | ID
-                     | NUM
+expression         ::= expression:e1 EQ expression:e2
+                     {: RESULT = new OpExp(e1left, e1right, e1, OpExp.EQ, e2); :}
+                     | expression:e1 NE expression:e2
+                     {: RESULT = new OpExp(e1left, e1right, e1, OpExp.NE, e2); :}
+                     | expression:e1 LT expression:e2
+                     {: RESULT = new OpExp(e1left, e1right, e1, OpExp.LT, e2); :}
+                     | expression:e1 LE expression:e2
+                     {: RESULT = new OpExp(e1left, e1right, e1, OpExp.LE, e2); :}
+                     | expression:e1 GT expression:e2
+                     {: RESULT = new OpExp(e1left, e1right, e1, OpExp.GT, e2); :}
+                     | expression:e1 GE expression:e2
+                     {: RESULT = new OpExp(e1left, e1right, e1, OpExp.GE, e2); :}
+                     | expression:e1 PLUS expression:e2
+                     {: RESULT = new OpExp(e1left, e1right, e1, OpExp.PLUS, e2); :}
+                     | expression:e1 MINUS expression:e2
+                     {: RESULT = new OpExp(e1left, e1right, e1, OpExp.MINUS, e2); :}
+                     | expression:e1 STAR expression:e2
+                     {: RESULT = new OpExp(e1left, e1right, e1, OpExp.STAR, e2); :}
+                     | expression:e1 SLASH expression:e2
+                     {: RESULT = new OpExp(e1left, e1right, e1, OpExp.SLASH, e2); :}
+                     | expression:e1 ASSIGN expression:e2
+                     {: RESULT = new AssignExp(e1left, e1right, e1, e2); :}
+                     | ID:i LPAREN args:a RPAREN
+                     {: RESULT = new CallExp(ileft, iright, i, a); :}
+                     | ID:i LBRACK expression:e RBRACK
+                     {: RESULT = new IndexExp(ileft, iright, new IdExp(ileft, iright, i), e); :}
+                     | LPAREN expression:e RPAREN
+                     {: RESULT = e; :}
+                     | ID:i
+                     {: RESULT = new IdExp(ileft, iright, i); :}
+                     | NUM:n
+                     {: RESULT = new NumExp(nleft, nright, n.intValue()); :}
                      ;
