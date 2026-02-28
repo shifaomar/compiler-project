@@ -1,0 +1,9 @@
+/* 
+2.cm
+Tests declaration recovery for a missing semicolon.
+Error: missing semicolon after "int x"
+Expected behavior: report error and continue parsing next declaration.
+*/
+
+int x
+int y;
