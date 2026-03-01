@@ -41,6 +41,33 @@ parser code {:
                            list.head,
                            appendExpList(list.tail, e));
     }
+
+    // keep declaration order the same as the source file
+    private static DeclList appendDeclList(DeclList list, Absyn d) {
+        if (list == null)
+            return new DeclList(d.row, d.col, d, null);
+        return new DeclList(list.row, list.col,
+                            list.head,
+                            appendDeclList(list.tail, d));
+    }
+
+    // keep statement order the same as the source file
+    private static StmtList appendStmtList(StmtList list, Stmt s) {
+        if (list == null)
+            return new StmtList(s.row, s.col, s, null);
+        return new StmtList(list.row, list.col,
+                            list.head,
+                            appendStmtList(list.tail, s));
+    }
+
+    // keep parameter order the same as the source file
+    private static ParamList appendParamList(ParamList list, Param p) {
+        if (list == null)
+            return new ParamList(p.row, p.col, p, null);
+        return new ParamList(list.row, list.col,
+                             list.head,
+                             appendParamList(list.tail, p));
+    }
 :};
 
 /* ---------------- Terminals ---------------- */
@@ -93,7 +120,7 @@ declaration_list
             if (d == null)
                 RESULT = dl;
             else
-                RESULT = new DeclList(dleft, dright, d, dl);
+                RESULT = appendDeclList(dl, d);
         :}
     | declaration:d
         {:
@@ -169,7 +196,7 @@ params ::= param_list:p {: RESULT = p; :};
 
 param_list
     ::= param_list:pl COMMA param:p
-        {: RESULT = new ParamList(pleft, pright, p, pl); :}
+        {: RESULT = appendParamList(pl, p); :}
 
     | param:p
         {: RESULT = new ParamList(pleft, pright, p, null); :}
@@ -193,7 +220,7 @@ param
 
 statement_list
     ::= statement_list:sl statement:s
-        {: RESULT = new StmtList(sleft, sright, s, sl); :}
+        {: RESULT = appendStmtList(sl, s); :}
 
     | statement:s
         {: RESULT = new StmtList(sleft, sright, s, null); :}

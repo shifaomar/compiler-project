@@ -1,6 +1,7 @@
 /**
  * Main driver for C- compiler (Checkpoint 1).
  * Usage: CM -a <input.cm>   -- parse and output abstract syntax tree (.abs)
+ *        CM <input.cm>       -- parse only
  */
 import java.io.FileReader;
 import java.io.PrintWriter;
@@ -14,14 +15,23 @@ class Main {
                 System.exit(1);
             }
 
-            // need -a and a filename; otherwise just show usage
-            if (argv.length < 2 || !"-a".equals(argv[0])) {
-                printUsage();
-                System.exit(1);
-            }
+            boolean showTree = false;
+            String path;
 
-            String path = argv[1];
-            boolean showTree = true;
+            if ("-a".equals(argv[0])) {
+                if (argv.length < 2) {
+                    printUsage();
+                    System.exit(1);
+                }
+                showTree = true;
+                path = argv[1];
+            } else {
+                if (argv.length > 1) {
+                    printUsage();
+                    System.exit(1);
+                }
+                path = argv[0];
+            }
 
             Lexer lexer = new Lexer(new FileReader(path));
             parser p = new parser(lexer);
@@ -47,7 +57,9 @@ class Main {
                 out.flush();
                 out.close();
                 System.out.println("Abstract syntax tree written to " + outPath);
-            } else {
+            }
+
+            if (!showTree) {
                 System.out.println("Parse completed successfully.");
             }
         } catch (Exception e) {
@@ -58,6 +70,7 @@ class Main {
 
     private static void printUsage() {
         System.err.println("Usage: CM -a <input.cm>");
+        System.err.println("       CM <input.cm>");
         System.err.println("  -a  perform syntactic analysis and output abstract syntax tree (.abs)");
     }
 }

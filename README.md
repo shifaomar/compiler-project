@@ -32,13 +32,16 @@ make JFLEX=C:/jflex/bin/jflex
 
 ## How to run
 
-You need to pass `-a` and a C- file:
+You can either parse only or generate an AST:
 
 ```bash
 ./CM -a myfile.cm
+
+# parse only (no ast output)
+./CM myfile.cm
 ```
 
-That parses `myfile.cm` and writes the abstract syntax tree to `myfile.abs` in the same directory. If you run `CM` without `-a`, it will just print usage.
+`-a` parses `myfile.cm` and writes the abstract syntax tree to `myfile.abs` in the same directory. Without `-a`, it only parses and prints a success message.
 
 You can also run it directly with Java:
 
