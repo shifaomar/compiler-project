@@ -1,0 +1,11 @@
+/* Test: Declare "y" twice within the same scope (redefined variable).
+   Tests that the symbol table reports redefinition errors.
+   Expect: Error for redefinition of 'y' at line 6. */
+void main(void) {
+  int x;
+  int y;
+  int y;   /* y already declared above in same scope */
+  x = input();
+  y = input();
+  output(x);
+}

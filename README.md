@@ -1,6 +1,6 @@
-# C- Compiler (Checkpoint 1)
+# C- Compiler
 
-A compiler for the C- language. Right now it can scan C- source, parse it, build an abstract syntax tree (AST), and perform basic syntax error recovery so multiple errors can be reported during parsing. The tree gets printed to a `.abs` file so you can see the structure of your program.
+A compiler for the C- language. It can scan C- source, parse it, build an abstract syntax tree (AST), perform syntax error recovery, build symbol tables, and check for semantic errors (undefined/redefined identifiers). The tree gets printed to a `.abs` file and the symbol table to a `.sym` file when requested.
 
 We used the Tiny sample parser from the C1-Package (CourseLink) as a reference when building this.
 
@@ -32,21 +32,21 @@ make JFLEX=C:/jflex/bin/jflex
 
 ## How to run
 
-You can either parse only or generate an AST:
-
 ```bash
-./CM -a myfile.cm
-
-# parse only (no ast output)
-./CM myfile.cm
+./CM myfile.cm           # parse and run symbol table (report errors only)
+./CM -a myfile.cm        # also output abstract syntax tree to myfile.abs
+./CM -s myfile.cm        # also output symbol table to myfile.sym
+./CM -a -s myfile.cm     # output both (when valid)
 ```
 
-`-a` parses `myfile.cm` and writes the abstract syntax tree to `myfile.abs` in the same directory. Without `-a`, it only parses and prints a success message.
+- `-a` writes the abstract syntax tree to `myfile.abs`
+- `-s` writes the symbol table (with entry/exit per scope) to `myfile.sym`
+- Output files are only written when the input is valid (no syntax or semantic errors)
 
 You can also run it directly with Java:
 
 ```bash
-java -cp .:java-cup-11b.jar Main -a myfile.cm
+java -cp .:java-cup-11b.jar Main -a -s myfile.cm
 ```
 
 
@@ -55,6 +55,12 @@ java -cp .:java-cup-11b.jar Main -a myfile.cm
 ## Testing
 
 We’ve tried it on the five sample programs from the C1-Package: `fac.cm`, `booltest.cm`, `gcd.cm`, `sort.cm`, and `mutual.cm`. They all parse and produce valid ASTs.
+
+For symbol table demo:
+- `./CM -s ../cp1/C1-Package/gcd.cm` — symbol table at entry/exit for gcd
+- `./CM -s symtab_demo.cm` — different kinds: int x; bool bbb[10]; void foo(void)
+- `./CM undef_z.cm` — undefined variable 'z'
+- `./CM redef_y.cm` — redefined variable 'y'
 
 This submission includes custom test files `1.cm` through `5.cm`:
 
@@ -74,6 +80,7 @@ The project was built and tested on the School of Computer Science Linux servers
 - `c.flex` — scanner (JFlex)
 - `c.cup` — parser, AST building (CUP), and error recovery
 - `absyn/` — AST node classes
-- `Main.java` — entry point and `-a` handling
+- `symbol/` — symbol table (TableEntry, SymbolTable, SymbolTableVisitor)
+- `Main.java` — entry point, `-a` and `-s` handling
 
 

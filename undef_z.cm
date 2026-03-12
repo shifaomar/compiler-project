@@ -1,0 +1,10 @@
+/* Test: Use "z" without a declaration (undefined variable).
+   Tests that the symbol table reports undefined variable errors.
+   Expect: Error for undefined 'z' at line 8. */
+void main(void) {
+  int x;
+  int y;
+  x = input();
+  y = input();
+  output(z);   /* z is never declared */
+}

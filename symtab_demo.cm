@@ -1,0 +1,17 @@
+/* Test: Symbol table with different kinds of declarations.
+   Demonstrates key-value pairs in different scopes for:
+   - int x (simple variable)
+   - bool bbb[10] (array variable)
+   - void foo(void) { } (function)
+   Use with: CM -s symtab_demo.cm */
+int x;
+bool bbb[10];
+void foo(void) {
+  int y;
+  y = 0;
+}
+void main(void) {
+  x = 0;
+  bbb[0] = 1;
+  foo();
+}

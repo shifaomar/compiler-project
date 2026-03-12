@@ -1,4 +1,4 @@
-# C- Scanner and Parser (Checkpoint 1) — Linux
+# C- Scanner and Parser — Linux
 # Put java-cup-11b.jar in this directory, or set CUPJAR to its path.
 #
 # Windows local dev (JFlex at C:\jflex):
@@ -20,8 +20,8 @@ CM: Main.class
 	@chmod +x CM
 
 # Build order: CUP generates parser + sym; JFlex needs sym; then compile all (including absyn)
-Main.class: parser.java sym.java Lexer.java Token.java Scanner.java Main.java absyn/*.java
-	$(JAVAC) $(CLASSPATH) absyn/*.java *.java
+Main.class: parser.java sym.java Lexer.java Token.java Scanner.java Main.java absyn/*.java symbol/*.java
+	$(JAVAC) $(CLASSPATH) absyn/*.java symbol/*.java *.java
 
 Lexer.java: c.flex sym.java
 	$(JFLEX) c.flex
