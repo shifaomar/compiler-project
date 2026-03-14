@@ -1,0 +1,5 @@
+void main(void) {
+  int arr[10];
+  bool b;
+  arr[b] = 3;
+}

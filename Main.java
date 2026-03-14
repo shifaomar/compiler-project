@@ -73,6 +73,15 @@ class Main {
                 System.exit(1);
             }
 
+            // semantic/type checking pass
+            SymbolTable semTab = new SymbolTable();
+            SemanticVisitor semVisitor = new SemanticVisitor(semTab);
+            program.accept(semVisitor, 0);
+
+            if (semVisitor.hasErrors()) {
+                System.exit(1);
+            }
+
             // only write when no syntax or semantic errors
             if (showSymTab) {
                 String symPath = path.replaceAll("\\.cm$", ".sym");

@@ -1,0 +1,23 @@
+Symbol table for sem_valid.cm
+
+
+  === Entering function square ===
+    x: int
+
+  === Exiting function square ===
+    x: int
+
+
+  === Entering function main ===
+    a: int
+
+  === Exiting function main ===
+    a: int
+
+
+=== global scope ===
+  output: function void (void)
+  input: function int (void)
+  square: function int (int)
+  main: function void (void)
+

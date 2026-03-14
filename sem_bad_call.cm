@@ -1,0 +1,8 @@
+int foo(int x) {
+  return x;
+}
+
+void main(void) {
+  bool b;
+  foo(b);
+}

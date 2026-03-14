@@ -1,0 +1,23 @@
+Abstract syntax tree for sem_valid.cm:
+
+Program:
+    FunDecl: square
+        Type: int
+        Param: x
+            Type: int
+        ReturnStmt:
+            OpExp: *
+                IdExp: x
+                IdExp: x
+    FunDecl: main
+        Type: void
+        VarDecl: a
+            Type: int
+        ExpStmt:
+            AssignExp:
+                IdExp: a
+                CallExp: square
+                    NumExp: 5
+        ExpStmt:
+            CallExp: output
+                IdExp: a

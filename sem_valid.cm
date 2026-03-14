@@ -1,0 +1,9 @@
+int square(int x) {
+  return x * x;
+}
+
+void main(void) {
+  int a;
+  a = square(5);
+  output(a);
+}
