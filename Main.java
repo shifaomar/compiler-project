@@ -69,7 +69,20 @@ class Main {
             SymbolTableVisitor symVisitor = new SymbolTableVisitor(symTab, symOut, showSymTab);
             program.accept(symVisitor, 0);
 
-            // write symbol table output even if there are semantic errors
+            if (symVisitor.hasErrors()) {
+                System.exit(1);
+            }
+
+            // semantic/type checking pass
+            SymbolTable semTab = new SymbolTable();
+            SemanticVisitor semVisitor = new SemanticVisitor(semTab);
+            program.accept(semVisitor, 0);
+
+            if (semVisitor.hasErrors()) {
+                System.exit(1);
+            }
+
+            // only write when no syntax or semantic errors
             if (showSymTab) {
                 String symPath = path.replaceAll("\\.cm$", ".sym");
                 if (symPath.equals(path)) symPath = path + ".sym";
@@ -79,10 +92,6 @@ class Main {
                 f.flush();
                 f.close();
                 System.out.println("Symbol table written to " + symPath);
-            }
-
-            if (symVisitor.hasErrors()) {
-                System.exit(1);
             }
 
             if (showTree) {
