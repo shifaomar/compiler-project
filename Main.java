@@ -53,12 +53,14 @@ class Main {
 
             Lexer lexer = new Lexer(new FileReader(path));
             parser p = new parser(lexer);
+
+            parser.valid = true;
             Object result = p.parse().value;
 
-            if (result == null) {
+            if (result == null || !parser.valid) {
                 System.err.println("Parse failed.");
                 System.exit(1);
-            }
+        }
 
             Program program = (Program) result;
 
@@ -69,20 +71,22 @@ class Main {
             SymbolTableVisitor symVisitor = new SymbolTableVisitor(symTab, symOut, showSymTab);
             program.accept(symVisitor, 0);
 
+
+            boolean semanticErrors = false;
+
             if (symVisitor.hasErrors()) {
-                System.exit(1);
+                semanticErrors = true;
             }
 
-            // semantic/type checking pass
             SymbolTable semTab = new SymbolTable();
             SemanticVisitor semVisitor = new SemanticVisitor(semTab);
             program.accept(semVisitor, 0);
 
             if (semVisitor.hasErrors()) {
-                System.exit(1);
+                semanticErrors = true;
             }
 
-            // only write when no syntax or semantic errors
+            // write before exiting
             if (showSymTab) {
                 String symPath = path.replaceAll("\\.cm$", ".sym");
                 if (symPath.equals(path)) symPath = path + ".sym";
@@ -105,6 +109,10 @@ class Main {
                 out.flush();
                 out.close();
                 System.out.println("Abstract syntax tree written to " + outPath);
+            }
+
+            if (semanticErrors) {
+                System.exit(1);
             }
 
             if (!showTree && !showSymTab) {

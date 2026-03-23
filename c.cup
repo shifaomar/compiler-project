@@ -8,7 +8,9 @@ import absyn.*;
 /* ---------------- Parser Code ---------------- */
 
 parser code {:
+    public static boolean valid = true;
     public void report_error(String message, Object info) {
+        valid = false;
         StringBuffer m = new StringBuffer("Error");
 
         if (info instanceof java_cup.runtime.Symbol) {
@@ -29,6 +31,7 @@ parser code {:
     }
 
     public void report_fatal_error(String message, Object info) {
+        valid = false;
         report_error(message, info);
         System.exit(1);
     }
