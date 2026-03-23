@@ -130,3 +130,4 @@ class Main {
         System.err.println("  -s  output symbol table (.sym)");
     }
 }
+//checkng

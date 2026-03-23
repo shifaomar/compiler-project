@@ -54,7 +54,7 @@ parser code {:
                             appendDeclList(list.tail, d));
     }
 
-    // keep statement order the same as the source file
+    // keep statement order the same as the source file !!
     private static StmtList appendStmtList(StmtList list, Stmt s) {
         if (list == null)
             return new StmtList(s.row, s.col, s, null);
