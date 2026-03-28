@@ -2,9 +2,13 @@
  * Main driver for C- compiler.
  * Usage: CM -a <input.cm>   -- output abstract syntax tree (.abs)
  *        CM -s <input.cm>   -- output symbol table (.sym)
+ *        CM -c <input.cm>     -- output TM assembly (.tm)
  *        CM -a -s <input.cm> -- both
+ *        CM -a -c <input.cm>  -- tree + code
+ *        CM -s -c <input.cm>  -- symbol table + code
  *        CM <input.cm>      -- parse and run symbol table only
  */
+
 import java.io.FileReader;
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -21,7 +25,10 @@ class Main {
 
             boolean showTree = false;
             boolean showSymTab = false;
+    
             String path = null;
+
+            boolean generateCode = false;
 
             int i = 0;
             while (i < argv.length) {
@@ -31,12 +38,16 @@ class Main {
                 } else if ("-s".equals(argv[i])) {
                     showSymTab = true;
                     i++;
+                } else if ("-c".equals(argv[i])) {
+                    generateCode = true;
+                    i++;
                 } else if (argv[i].startsWith("-") && argv[i].length() > 1) {
                     // handle -as, -sa, etc.
                     for (int j = 1; j < argv[i].length(); j++) {
                         char c = argv[i].charAt(j);
                         if (c == 'a') showTree = true;
                         else if (c == 's') showSymTab = true;
+                        else if (c == 'c') generateCode = true;
                     }
                     i++;
                 } else {
@@ -115,7 +126,21 @@ class Main {
                 System.exit(1);
             }
 
-            if (!showTree && !showSymTab) {
+            if (generateCode) {
+                String tmPath = path.replaceAll("\\.cm$", ".tm");
+                if (tmPath.equals(path)) tmPath = path + ".tm";
+
+                PrintWriter tmOut = new PrintWriter(tmPath);
+                CodeGenerator cg = new CodeGenerator(tmOut);
+                program.accept(cg, 0);
+                tmOut.flush();
+                tmOut.close();
+
+                System.out.println("Assembly code written to " + tmPath);
+            }
+
+
+            if (!showTree && !showSymTab && !generateCode) {
                 System.out.println("Parse completed successfully.");
             }
         } catch (Exception e) {
@@ -128,6 +153,7 @@ class Main {
         System.err.println("Usage: CM [-a] [-s] <input.cm>");
         System.err.println("  -a  output abstract syntax tree (.abs)");
         System.err.println("  -s  output symbol table (.sym)");
+        System.err.println("  -c  output TM assembly (.tm)");
     }
 }
 //checkng

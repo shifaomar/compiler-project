@@ -1,0 +1,18 @@
+int x;
+bool b;
+int a[5];
+
+void foo(int p) {
+    int y;
+    {
+        int z;
+        z = y;
+    }
+    x = z;      /* undefined: z outside inner block */
+}
+
+void main(void) {
+    int x;
+    int x;      /* redefined in same scope */
+    foo(x);
+}
