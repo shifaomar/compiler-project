@@ -215,12 +215,22 @@ public class CodeGenerator implements AbsynVisitor {
         return globalVars.get(name);
     }
 
+    /** Globals use GP; locals/params use FP — even when reading code inside a function body. */
+    private boolean isGlobalBinding(String name) {
+        for (Map<String, Integer> m : scopeStack) {
+            if (m.containsKey(name)) {
+                return false;
+            }
+        }
+        return globalVars.containsKey(name);
+    }
+
     private void emitLoadVar(String name) {
         Integer off = lookupVar(name);
         if (off == null) {
             throw new RuntimeException("Code generation error: unknown variable '" + name + "'");
         }
-        if (scopeStack.isEmpty()) {
+        if (isGlobalBinding(name)) {
             emitRM("LD", AC, off, GP, "load global " + name);
         } else {
             emitRM("LD", AC, off, FP, "load " + name);
@@ -232,7 +242,7 @@ public class CodeGenerator implements AbsynVisitor {
         if (off == null) {
             throw new RuntimeException("Code generation error: unknown variable '" + name + "'");
         }
-        if (scopeStack.isEmpty()) {
+        if (isGlobalBinding(name)) {
             emitRM("ST", AC, off, GP, "store global " + name);
         } else {
             emitRM("ST", AC, off, FP, "store " + name);

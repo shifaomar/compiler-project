@@ -14,18 +14,19 @@
  10:    LD 7, -1(5)	return to caller
   3:   LDA 7, 7(7)	jump around i/o routines
 * function main
- 11:    ST 0, -1(5)	store return
- 12:    LD 0, -1(6)	load variable x
- 13:    ST 0, -3(5)	save left operand
- 14:   LDC 0, 3(0)	load const
- 15:    LD 1, -3(5)	load left operand
- 16:   ADD 0, 1, 0	op +
- 17:    ST 0, -1(6)	assign to x
- 18:    LD 7, -1(5)	return to caller
+ 12:    ST 0, -1(5)	store return
+ 13:    LD 0, -1(6)	load global x
+ 14:    ST 0, -3(5)	save left operand
+ 15:   LDC 0, 3(0)	load const
+ 16:    LD 1, -3(5)	load left operand
+ 17:   ADD 0, 1, 0	op +
+ 18:    ST 0, -1(6)	store global x
+ 19:    LD 7, -1(5)	return to caller
+ 11:   LDA 7, 8(7)	jump over function bodies to finale
 * finale
- 19:    ST 5, -1(5)	push ofp
- 20:   LDA 5, -1(5)	push frame
- 21:   LDA 0, 1(7)	load ac with return pointer
- 22:   LDA 7, -12(7)	jump to main
- 23:    LD 5, 0(5)	pop frame
- 24:  HALT 0, 0, 0	done
+ 20:    ST 5, -1(5)	push ofp
+ 21:   LDA 5, -1(5)	push frame
+ 22:   LDA 0, 1(7)	load ac with return pointer
+ 23:   LDA 7, -12(7)	jump to main
+ 24:    LD 5, 0(5)	pop frame
+ 25:  HALT 0, 0, 0	done
