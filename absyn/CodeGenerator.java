@@ -147,6 +147,7 @@ public class CodeGenerator implements AbsynVisitor {
     @Override
     public void visit(ArrayDecl n, int level) {
         globalOffset -= (n.size + 1);
+        globalVars.put(n.name, globalOffset + 1);
     }
 
     @Override
@@ -233,6 +234,37 @@ public class CodeGenerator implements AbsynVisitor {
 
     @Override
     public void visit(OpExp n, int level) {
+        int tempOffset = INIT_FO - 1; // -3 -> temporary slot at fp-3 for simple arithmetic
+
+        // evaluate left side → AC
+        n.left.accept(this, level);
+
+        // save left side
+        emitRM("ST", AC, tempOffset, FP, "save left operand");
+
+        // evaluate right side → AC
+        n.right.accept(this, level);
+
+        // restore left into AC1
+        emitRM("LD", AC1, tempOffset, FP, "load left operand");
+
+        // perform operation
+        switch (n.op) {
+            case OpExp.PLUS:
+                emitRO("ADD", AC, AC1, AC, "op +");
+                break;
+            case OpExp.MINUS:
+                emitRO("SUB", AC, AC1, AC, "op -");
+                break;
+            case OpExp.STAR:
+                emitRO("MUL", AC, AC1, AC, "op *");
+                break;
+            case OpExp.SLASH:
+                emitRO("DIV", AC, AC1, AC, "op /");
+                break;
+            default:
+                throw new RuntimeException("Code generation error: unsupported operator in OpExp");
+        }
     }
 
     @Override
