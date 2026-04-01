@@ -1,0 +1,31 @@
+/* 6.cm
+   Invalid program.
+   Tests semantic/type errors:
+   1) void function returns a value
+   2) int function returns no value
+   3) wrong number of arguments in function call
+*/
+
+void badVoid(void)
+{
+    return 5;
+}
+
+int badInt(int x)
+{
+    return;
+}
+
+int add(int a, int b)
+{
+    return a + b;
+}
+
+int main(void)
+{
+    int z;
+
+    z = add(1);
+
+    return 0;
+}

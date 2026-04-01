@@ -1,10 +1,20 @@
-/* 
-4.cm
-Tests parameter list recovery.
-Error: extra comma in parameter list "int x, , int y"
-Expected behavior: report invalid parameter and continue parsing function body.
+/* 4.cm
+   Invalid program.
+   Tests syntax errors:
+   1) missing semicolon after declaration
+   2) missing right parenthesis in if condition
+   3) malformed assignment expression
 */
 
-int f(int x, , int y) {
-  return x;
+int main(void)
+{
+    int x
+    x = 5;
+
+    if (x < 10
+        write x;
+
+    x = + ;
+
+    return 0;
 }

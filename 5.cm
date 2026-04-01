@@ -1,15 +1,19 @@
-/* 
-5.cm
-Tests multiple syntax errors in one run.
-Errors:
-1. missing semicolon after declaration "int x"
-2. invalid parameter list (extra comma in "int a, , int b")
-3. missing right operand in expression "x = 3 + ;"
-Expected behavior: report all errors, recover, and still generate an AST.
+/* 5.cm
+   Invalid program.
+   Tests semantic errors:
+   1) redefinition of variable x
+   2) use of undefined variable y
+   3) call to undefined function foo
 */
 
-int x
-int f(int a, , int b) {
-  x = 3 + ;
-  return ;
+int main(void)
+{
+    int x;
+    int x;
+    int z;
+
+    z = y + 1;
+    z = foo(3);
+
+    return 0;
 }

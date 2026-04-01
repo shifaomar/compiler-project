@@ -1,0 +1,38 @@
+/* 9.cm
+   Stress test / mixed-error file.
+   Intentionally contains multiple syntax and semantic issues.
+   Tests parser recovery and type-check recovery.
+*/
+
+int f(int x, int x)
+{
+    int y
+    if (x < )
+        return x;
+    else
+        return z;
+}
+
+void g(int a[])
+{
+    a = 4;
+    return 1;
+}
+
+int main(void)
+{
+    int n;
+    int n[5];
+
+    n = g();
+    if (g(n))
+    {
+        write n;
+    }
+    else
+    {
+        write ;
+    }
+
+    return
+}

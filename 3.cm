@@ -1,12 +1,43 @@
-/* 
-3.cm
-Tests expression recovery (missing right operand).
-Error: x = 5 + ;
-Expected behavior: report expression error and continue to next statement.
+/* 3.cm
+   Valid program.
+   Tests: arrays, array parameters, while-loops, nested blocks,
+   function calls, accumulation, and writes.
 */
 
-int main() {
-  int x;
-  x = 5 + ;
-  x = 10;
+int sumArray(int a[], int n)
+{
+    int i;
+    int sum;
+
+    i = 0;
+    sum = 0;
+
+    while (i < n)
+    {
+        {
+            int temp;
+            temp = a[i];
+            sum = sum + temp;
+        }
+        i = i + 1;
+    }
+
+    return sum;
+}
+
+int main(void)
+{
+    int x[5];
+    int result;
+
+    x[0] = 4;
+    x[1] = 1;
+    x[2] = 3;
+    x[3] = 2;
+    x[4] = 10;
+
+    result = sumArray(x, 5);
+    write result;
+
+    return 0;
 }

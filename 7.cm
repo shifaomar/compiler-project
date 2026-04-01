@@ -1,0 +1,26 @@
+/* 7.cm
+   Invalid program.
+   Tests semantic/type errors:
+   1) void function used in expression
+   2) void function used as array index
+   3) void function used as while condition
+*/
+
+void noValue(void)
+{
+    return;
+}
+
+int main(void)
+{
+    int a[5];
+    int x;
+
+    x = noValue();
+    a[noValue()] = 3;
+
+    while (noValue())
+        x = x + 1;
+
+    return 0;
+}

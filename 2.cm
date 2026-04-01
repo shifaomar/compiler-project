@@ -1,9 +1,26 @@
-/* 
-2.cm
-Tests declaration recovery for a missing semicolon.
-Error: missing semicolon after "int x"
-Expected behavior: report error and continue parsing next declaration.
+/* 2.cm
+   Valid program.
+   Tests: self-recursion, function calls, if-else, comparison,
+   multiplication, return values.
 */
 
-int x
-int y;
+int fact(int n)
+{
+    if (n < 2)
+        return 1;
+    else
+        return n * fact(n - 1);
+}
+
+int main(void)
+{
+    int x;
+    int y;
+
+    x = 5;
+    y = fact(x);
+
+    write y;
+
+    return 0;
+}

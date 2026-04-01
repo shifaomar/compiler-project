@@ -1,0 +1,68 @@
+/* 0.cm
+   Brutal mixed test.
+   Includes recursion, mutual recursion attempt, arrays, bad calls,
+   undefined identifiers, syntax issues, and type issues.
+*/
+
+int even(int n);
+int odd(int n);
+
+int even(int n)
+{
+    if (n == 0)
+        return 1;
+    else
+        return odd(n - 1);
+}
+
+int odd(int n)
+{
+    if (n == 0)
+        return 0;
+    else
+        return even(n - 1);
+}
+
+void fill(int a[], int n)
+{
+    int i;
+    i = 0;
+    while (i < n)
+    {
+        a[i] = i * 2;
+        i = i + 1;
+    }
+}
+
+int broken(int a[], void x)
+{
+    int i;
+    i = 0
+
+    while (i < 5) {
+        a[i] = a[i] + missing;
+        i = i + 1;
+    }
+
+    return;
+}
+
+int main(void)
+{
+    int data[4];
+    int r;
+
+    fill(data, 4);
+    r = even(5);
+    write r;
+
+    data[4] = 99;
+    r = broken(data, 3, 4);
+
+    if (fill(data, 4))
+        write data[0]
+    else
+        write data[1];
+
+    return 0;
+}

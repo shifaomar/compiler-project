@@ -1,0 +1,23 @@
+/* 8.cm
+   Valid for scanning/parsing/semantic analysis, but should cause
+   a runtime error.
+   Tests: runtime array index out of range.
+*/
+
+int main(void)
+{
+    int a[3];
+    int i;
+
+    i = 0;
+    while (i < 3)
+    {
+        a[i] = i + 1;
+        i = i + 1;
+    }
+
+    write a[1];
+    write a[3];
+
+    return 0;
+}
