@@ -16,9 +16,11 @@ public class CodeGenerator implements AbsynVisitor {
 
     private final Map<String, Integer> globalVars = new HashMap<>();
     private final Map<String, Integer> funcEntries = new HashMap<>();
+    private final Map<String, Integer> globalArraySizes = new HashMap<>();
     private final Map<String, List<Integer>> pendingCallPatches = new HashMap<>();
     private final Map<String, Boolean> globalArrayFlags = new HashMap<>();
     private final Deque<Map<String, Boolean>> arrayFlagStack = new ArrayDeque<>();
+    
 
     private static final int AC = 0;
     private static final int AC1 = 1;
@@ -30,6 +32,8 @@ public class CodeGenerator implements AbsynVisitor {
     private static final int RET_FO = -1;
     private static final int INIT_FO = -2;
 
+    private int oobBelowLoc = -1;
+    private int oobAboveLoc = -1;
     private int emitLoc = 0;
     private int highEmitLoc = 0;
     private int mainEntry = -1;
@@ -259,6 +263,63 @@ public class CodeGenerator implements AbsynVisitor {
         }
     }
 
+    private void emitLoadArrayBase(String arrName) {
+        Integer base = lookupVar(arrName);
+        if (base == null) {
+            throw new RuntimeException("Code generation error: unknown array '" + arrName + "'");
+        }
+
+        if (isGlobalBinding(arrName)) {
+            emitRM("LDA", AC1, base, GP, "array base");
+        } else if (isArrayParameter(arrName)) {
+            emitRM("LD", AC1, base, FP, "load array param base");
+        } else {
+            emitRM("LDA", AC1, base, FP, "array base");
+        }
+    }
+
+    private void emitBoundsCheck(String arrName) {
+        // AC = index on entry
+        int savedIndex = localOffset - 20;   // temporary slot
+        int savedSize  = localOffset - 21;   // temporary slot
+
+        // save index
+        emitRM("ST", AC, savedIndex, FP, "save array index");
+
+        // load base into AC1
+        emitLoadArrayBase(arrName);
+
+        // size is stored right below base
+        emitRM("LD", AC1, -1, AC1, "load array size");
+        emitRM("ST", AC1, savedSize, FP, "save array size");
+
+        // check index < 0
+        emitRM("LD", AC, savedIndex, FP, "reload index");
+        int okNonNegHole = emitSkip(1);  // will become JGE
+        emitJumpToAbs(oobBelowLoc, "index below range");
+
+        int nonNegOkLoc = emitLoc;
+        emitBackup(okNonNegHole);
+        emitRM("JGE", AC, nonNegOkLoc - (okNonNegHole + 1), PC, "index >= 0");
+        emitRestore();
+
+        //check index >= size 
+        emitRM("LD", AC, savedIndex, FP, "reload index");
+        emitRM("LD", AC1, savedSize, FP, "reload size");
+        emitRO("SUB", AC, AC, AC1, "index - size");
+
+        int belowSizeHole = emitSkip(1);  // will become JLT
+        emitJumpToAbs(oobAboveLoc, "index above range");
+
+        int belowSizeOkLoc = emitLoc;
+        emitBackup(belowSizeHole);
+        emitRM("JLT", AC, belowSizeOkLoc - (belowSizeHole + 1), PC, "index < size");
+        emitRestore();
+
+        // restore original index into AC
+        emitRM("LD", AC, savedIndex, FP, "restore index");
+    }
+
     private void emitStoreToVar(String name) {
         Integer off = lookupVar(name);
         if (off == null) {
@@ -280,6 +341,7 @@ public class CodeGenerator implements AbsynVisitor {
         emitRM("LDA", FP, 0, GP, "copy gp to fp");
         emitRM("ST", AC, 0, AC, "clear location 0");
 
+        // jump around I/O routines
         int savedLoc = emitSkip(1);
 
         emitIORoutines();
@@ -289,10 +351,47 @@ public class CodeGenerator implements AbsynVisitor {
         emitRMAbs("LDA", PC, afterIO, "jump around i/o routines");
         emitRestore();
 
+        // jump around runtime handlers
+        int savedRuntimeLoc = emitSkip(1);
+
+        // runtime error handlers
+        oobBelowLoc = emitLoc;
+        emitComment("runtime error: array index below range");
+        emitRM("LDC", AC, -1000000, 0, "out of range below");
+        emitRO("OUT", AC, 0, 0, "print runtime error");
+        emitRO("HALT", 0, 0, 0, "halt");
+
+        oobAboveLoc = emitLoc;
+        emitComment("runtime error: array index above range");
+        emitRM("LDC", AC, -2000000, 0, "out of range above");
+        emitRO("OUT", AC, 0, 0, "print runtime error");
+        emitRO("HALT", 0, 0, 0, "halt");
+
+        int afterRuntime = emitSkip(0);
+        emitBackup(savedRuntimeLoc);
+        emitRMAbs("LDA", PC, afterRuntime, "jump around runtime handlers");
+        emitRestore();
+
+        // reserve jump over user functions
+        // first emit global declarations and prototypes (not function bodies)
+        DeclList p = n.declarations;
+        while (p != null) {
+            if (p.head instanceof VarDecl || p.head instanceof ArrayDecl || p.head instanceof FunPrototype) {
+                p.head.accept(this, level);
+            }
+            p = p.tail;
+        }
+
+        // now reserve jump over function bodies
         jumpOverUserFunctionsLoc = emitSkip(1);
 
-        if (n.declarations != null) {
-            n.declarations.accept(this, level);
+        // now emit only function bodies
+        p = n.declarations;
+        while (p != null) {
+            if (p.head instanceof FunDecl) {
+                p.head.accept(this, level);
+            }
+            p = p.tail;
         }
 
         if (mainEntry == -1) {
@@ -305,8 +404,11 @@ public class CodeGenerator implements AbsynVisitor {
         emitRestore();
 
         emitComment("finale");
-        emitRM("ST", FP, globalOffset + OFP_FO, FP, "push ofp");
-        emitRM("LDA", FP, globalOffset, FP, "push frame");
+
+        int mainFrameOffset = globalOffset - 1;  // leave one extra slot below global data
+
+        emitRM("ST", FP, mainFrameOffset + OFP_FO, FP, "push ofp");
+        emitRM("LDA", FP, mainFrameOffset, FP, "push frame");
         emitRM("LDA", AC, 1, PC, "load ac with return pointer");
         emitRMAbs("LDA", PC, mainEntry, "jump to main");
         emitRM("LD", FP, OFP_FO, FP, "pop frame");
@@ -354,8 +456,17 @@ public class CodeGenerator implements AbsynVisitor {
     @Override
     public void visit(ArrayDecl n, int level) {
         globalOffset -= (n.size + 1);
-        globalVars.put(n.name, globalOffset + 1);
+
+    
+        int base = globalOffset + 1;
+
+        globalVars.put(n.name, base);
         globalArrayFlags.put(n.name, true);
+        globalArraySizes.put(n.name, n.size);
+
+        // store array size into memory at base-1
+        emitRM("LDC", AC, n.size, 0, "load array size");
+        emitRM("ST", AC, base - 1, GP, "store size for array " + n.name);
     }
 
     @Override
@@ -584,13 +695,8 @@ public class CodeGenerator implements AbsynVisitor {
             int tRhs = localOffset - 1;
             emitRM("ST", AC, tRhs, FP, "rhs");
             lhs.index.accept(this, level);
-            if (isGlobalBinding(arrName)) {
-                emitRM("LDA", AC1, base, GP, "array base");
-            } else if (isArrayParameter(arrName)) {
-                emitRM("LD", AC1, base, FP, "load array param base");
-            } else {
-                emitRM("LDA", AC1, base, FP, "array base");
-            }
+            emitBoundsCheck(arrName);
+            emitLoadArrayBase(arrName);
             emitRO("ADD", AC, AC1, AC, "elem addr");
             emitRM("LD", AC1, tRhs, FP, "rhs");
             emitRM("ST", AC1, 0, AC, "store to array");
@@ -700,13 +806,8 @@ public class CodeGenerator implements AbsynVisitor {
         }
         n.index.accept(this, level);
 
-        if (isGlobalBinding(arrName)) {
-            emitRM("LDA", AC1, base, GP, "array base");
-        } else if (isArrayParameter(arrName)) {
-            emitRM("LD", AC1, base, FP, "load array param base");
-        } else {
-            emitRM("LDA", AC1, base, FP, "array base");
-        }
+        emitBoundsCheck(arrName);
+        emitLoadArrayBase(arrName);
 
         emitRO("ADD", AC, AC1, AC, "elem addr");
         emitRM("LD", AC, 0, AC, "load array elem");
