@@ -15,6 +15,7 @@ public class TableEntry {
     public ParamList params;  // only for functions, null if void
     public int row;
     public int col;
+    public boolean isPrototype;
 
     // simple variable
     public TableEntry(int kind, String name, int type, int row, int col) {
@@ -25,6 +26,7 @@ public class TableEntry {
         this.params = null;
         this.row = row;
         this.col = col;
+        this.isPrototype = false;
     }
 
     // array variable
@@ -36,6 +38,7 @@ public class TableEntry {
         this.params = null;
         this.row = row;
         this.col = col;
+        this.isPrototype = false;
     }
 
     // function
@@ -47,6 +50,7 @@ public class TableEntry {
         this.params = params;
         this.row = row;
         this.col = col;
+        this.isPrototype = false;
     }
 
     // turn type code into "int", "void", or "bool"

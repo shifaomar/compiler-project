@@ -29,6 +29,23 @@ public class SemanticVisitor implements AbsynVisitor {
         return (e instanceof IdExp) || (e instanceof IndexExp);
     }
 
+    private boolean sameParams(ParamList a, ParamList b) {
+        while (a != null && b != null) {
+            if (a.head == null || b.head == null) return a.head == b.head;
+            if (a.head.type.typ != b.head.type.typ) return false;
+            if (a.head.isArray != b.head.isArray) return false;
+            a = a.tail;
+            b = b.tail;
+        }
+        return a == null && b == null;
+    }
+
+    private boolean sameFunctionSignature(TableEntry e, int returnType, ParamList params) {
+        if (e == null || e.kind != TableEntry.FUNC) return false;
+        if (e.type != returnType) return false;
+        return sameParams(e.params, params);
+    }
+
     private int getExpType(Exp e) {
         if (e == null) return Type.VOID;
 
@@ -171,25 +188,34 @@ public class SemanticVisitor implements AbsynVisitor {
         int pos = 1;
 
         while (params != null && args != null) {
-            int argType = getExpType(args.head);
-            int paramType = params.head.type.typ;
-
-            if (argType != ERROR_TYPE && argType != paramType) {
-                reportError(args.head.row, args.head.col,
-                    "argument " + pos + " of function '" + call.name + "' has wrong type");
-            }
-
             if (params.head.isArray) {
+                // array parameter: argument must be a named array with matching base type
                 if (!(args.head instanceof IdExp)) {
                     reportError(args.head.row, args.head.col,
                         "argument " + pos + " of function '" + call.name + "' must be an array");
                 } else {
                     IdExp id = (IdExp) args.head;
                     TableEntry argEntry = table.lookup(id.name);
-                    if (argEntry != null && argEntry.kind != TableEntry.ARRAY) {
+
+                    if (argEntry == null) {
+                        reportError(args.head.row, args.head.col,
+                            "undefined identifier '" + id.name + "'");
+                    } else if (argEntry.kind != TableEntry.ARRAY) {
                         reportError(args.head.row, args.head.col,
                             "argument " + pos + " of function '" + call.name + "' must be an array");
+                    } else if (argEntry.type != params.head.type.typ) {
+                        reportError(args.head.row, args.head.col,
+                            "argument " + pos + " of function '" + call.name + "' has wrong type");
                     }
+                }
+            } else {
+                // scalar parameter
+                int argType = getExpType(args.head);
+                int paramType = params.head.type.typ;
+
+                if (argType != ERROR_TYPE && argType != paramType) {
+                    reportError(args.head.row, args.head.col,
+                        "argument " + pos + " of function '" + call.name + "' has wrong type");
                 }
             }
 
@@ -241,16 +267,45 @@ public class SemanticVisitor implements AbsynVisitor {
     }
 
     public void visit(FunPrototype n, int level) {
-        TableEntry entry = new TableEntry(n.name, n.type.typ, n.params, n.row, n.col);
-        if (!table.insert(n.name, entry)) {
-            reportError(n.row, n.col, "redefinition of function '" + n.name + "'");
+        TableEntry existing = table.lookup(n.name);
+
+        if (existing == null) {
+            TableEntry entry = new TableEntry(n.name, n.type.typ, n.params, n.row, n.col);
+            entry.isPrototype = true;
+            table.insert(n.name, entry);
+            return;
         }
+
+        if (existing.kind != TableEntry.FUNC) {
+            reportError(n.row, n.col, "'" + n.name + "' already exists and is not a function");
+            return;
+        }
+
+        if (!sameFunctionSignature(existing, n.type.typ, n.params)) {
+            reportError(n.row, n.col, "conflicting declaration of function '" + n.name + "'");
+        }
+
     }
 
     public void visit(FunDecl n, int level) {
-        TableEntry funcEntry = new TableEntry(n.name, n.type.typ, n.params, n.row, n.col);
-        if (!table.insert(n.name, funcEntry)) {
-            reportError(n.row, n.col, "redefinition of function '" + n.name + "'");
+        TableEntry existing = table.lookup(n.name);
+
+        if (existing == null) {
+            TableEntry funcEntry = new TableEntry(n.name, n.type.typ, n.params, n.row, n.col);
+            funcEntry.isPrototype = false;
+            table.insert(n.name, funcEntry);
+        } else {
+            if (existing.kind != TableEntry.FUNC) {
+                reportError(n.row, n.col, "'" + n.name + "' already exists and is not a function");
+            } else if (existing.isPrototype) {
+                if (!sameFunctionSignature(existing, n.type.typ, n.params)) {
+                    reportError(n.row, n.col, "definition of function '" + n.name + "' does not match its prototype");
+                } else {
+                    existing.isPrototype = false;
+                }
+            } else {
+                reportError(n.row, n.col, "redefinition of function '" + n.name + "'");
+            }
         }
 
         table.scopePush();

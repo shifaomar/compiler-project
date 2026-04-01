@@ -5,7 +5,8 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.Map;
-
+import java.util.ArrayList;
+import java.util.List;
 /**
  * TM code generation. Person 2: control flow, functions, calls, compound scopes, full OpExp.
  * Person 1 (Athina): prelude, I/O, initial arithmetic tests — merged with Person 2.
@@ -15,6 +16,9 @@ public class CodeGenerator implements AbsynVisitor {
 
     private final Map<String, Integer> globalVars = new HashMap<>();
     private final Map<String, Integer> funcEntries = new HashMap<>();
+    private final Map<String, List<Integer>> pendingCallPatches = new HashMap<>();
+    private final Map<String, Boolean> globalArrayFlags = new HashMap<>();
+    private final Deque<Map<String, Boolean>> arrayFlagStack = new ArrayDeque<>();
 
     private static final int AC = 0;
     private static final int AC1 = 1;
@@ -215,6 +219,24 @@ public class CodeGenerator implements AbsynVisitor {
         return globalVars.get(name);
     }
 
+    private boolean isArrayBinding(String name) {
+        for (Map<String, Boolean> m : arrayFlagStack) {
+            if (m.containsKey(name)) {
+                return m.get(name);
+            }
+        }
+        return globalArrayFlags.getOrDefault(name, false);
+    }
+
+    private boolean isArrayParameter(String name) {
+        for (Map<String, Boolean> m : arrayFlagStack) {
+            if (m.containsKey(name)) {
+                return m.get(name);
+            }
+        }
+        return false;
+    }
+
     /** Globals use GP; locals/params use FP — even when reading code inside a function body. */
     private boolean isGlobalBinding(String name) {
         for (Map<String, Integer> m : scopeStack) {
@@ -314,6 +336,9 @@ public class CodeGenerator implements AbsynVisitor {
             }
             n = n.tail;
         }
+        // if (!pendingCallPatches.isEmpty()) {
+        //     throw new RuntimeException("Code generation error: unresolved function calls " + pendingCallPatches.keySet());
+        // }
     }
 
     @Override
@@ -323,19 +348,30 @@ public class CodeGenerator implements AbsynVisitor {
         }
         globalOffset--;
         globalVars.put(n.name, globalOffset);
+        globalArrayFlags.put(n.name, false);
     }
 
     @Override
     public void visit(ArrayDecl n, int level) {
         globalOffset -= (n.size + 1);
         globalVars.put(n.name, globalOffset + 1);
+        globalArrayFlags.put(n.name, true);
     }
 
     @Override
     public void visit(FunDecl n, int level) {
-        funcEntries.put(n.name, emitLoc);
+        int funStart = emitLoc;
+        funcEntries.put(n.name, funStart);
+        if (pendingCallPatches.containsKey(n.name)) {
+            for (int loc : pendingCallPatches.get(n.name)) {
+                emitBackup(loc);
+                emitRMAbs("LDA", PC, funStart, "call " + n.name);
+                emitRestore();
+            }
+            pendingCallPatches.remove(n.name);
+        }
         if ("main".equals(n.name)) {
-            mainEntry = emitLoc;
+            mainEntry = funStart;
         }
 
         emitComment("function " + n.name);
@@ -344,11 +380,14 @@ public class CodeGenerator implements AbsynVisitor {
         scopeStack.clear();
         Map<String, Integer> frame = new HashMap<>();
         scopeStack.push(frame);
+        Map<String, Boolean> frameFlags = new HashMap<>();
+        arrayFlagStack.push(frameFlags);
 
         int pOff = -2;
         ParamList pl = n.params;
         while (pl != null && pl.head != null) {
             frame.put(pl.head.name, pOff);
+            frameFlags.put(pl.head.name, pl.head.isArray);
             pOff--;
             pl = pl.tail;
         }
@@ -361,6 +400,7 @@ public class CodeGenerator implements AbsynVisitor {
                     VarDecl vd = (VarDecl) dl.head;
                     localOffset--;
                     frame.put(vd.name, localOffset);
+                    frameFlags.put(vd.name, false);
                 } else if (dl.head instanceof ArrayDecl) {
                     throw new RuntimeException("Code generation error: array locals not implemented (Person 3)");
                 }
@@ -374,6 +414,7 @@ public class CodeGenerator implements AbsynVisitor {
 
         emitRM("LD", PC, RET_FO, FP, "return to caller");
         scopeStack.clear();
+        arrayFlagStack.clear();
     }
 
     @Override
@@ -415,6 +456,7 @@ public class CodeGenerator implements AbsynVisitor {
         }
 
         scopeStack.push(new HashMap<>());
+        arrayFlagStack.push(new HashMap<>());
         if (n.declarations != null) {
             DeclList dl = n.declarations;
             while (dl != null && dl.head != null) {
@@ -422,6 +464,7 @@ public class CodeGenerator implements AbsynVisitor {
                     VarDecl vd = (VarDecl) dl.head;
                     localOffset--;
                     scopeStack.peek().put(vd.name, localOffset);
+                    arrayFlagStack.peek().put(vd.name, false);
                 } else if (dl.head instanceof ArrayDecl) {
                     throw new RuntimeException("Code generation error: array in compound not implemented (Person 3)");
                 }
@@ -433,6 +476,7 @@ public class CodeGenerator implements AbsynVisitor {
         }
         int innerLocals = scopeStack.peek().size();
         scopeStack.pop();
+        arrayFlagStack.pop();
         localOffset += innerLocals;
     }
 
@@ -532,7 +576,7 @@ public class CodeGenerator implements AbsynVisitor {
                 throw new RuntimeException("Code generation error: array expression not supported");
             }
             String arrName = ((IdExp) lhs.array).name;
-            Integer base = globalVars.get(arrName);
+            Integer base = lookupVar(arrName);
             if (base == null) {
                 throw new RuntimeException("Code generation error: unknown array '" + arrName + "'");
             }
@@ -540,7 +584,13 @@ public class CodeGenerator implements AbsynVisitor {
             int tRhs = localOffset - 1;
             emitRM("ST", AC, tRhs, FP, "rhs");
             lhs.index.accept(this, level);
-            emitRM("LDA", AC1, base, GP, "array base");
+            if (isGlobalBinding(arrName)) {
+                emitRM("LDA", AC1, base, GP, "array base");
+            } else if (isArrayParameter(arrName)) {
+                emitRM("LD", AC1, base, FP, "load array param base");
+            } else {
+                emitRM("LDA", AC1, base, FP, "array base");
+            }
             emitRO("ADD", AC, AC1, AC, "elem addr");
             emitRM("LD", AC1, tRhs, FP, "rhs");
             emitRM("ST", AC1, 0, AC, "store to array");
@@ -596,16 +646,29 @@ public class CodeGenerator implements AbsynVisitor {
             return;
         }
 
-        Integer entry = funcEntries.get(n.name);
-        if (entry == null) {
-            throw new RuntimeException("Code generation error: unknown function '" + n.name + "'");
-        }
-
         int argc = countArgs(n.args);
         ExpList a = n.args;
         int i = 0;
         while (a != null && a.head != null) {
-            a.head.accept(this, level);
+            if (a.head instanceof IdExp) {
+                String argName = ((IdExp) a.head).name;
+                Integer off = lookupVar(argName);
+
+                if (off != null && isArrayBinding(argName)) {
+                    if (isGlobalBinding(argName)) {
+                        emitRM("LDA", AC, off, GP, "arg array base " + argName);
+                    } else if (isArrayParameter(argName)) {
+                        emitRM("LD", AC, off, FP, "arg array param base " + argName);
+                    } else {
+                        emitRM("LDA", AC, off, FP, "arg array base " + argName);
+                    }
+                } else {
+                    a.head.accept(this, level);
+                }
+            } else {
+                a.head.accept(this, level);
+            }
+
             emitRM("ST", AC, localOffset - argc - i, FP, "arg " + i);
             i++;
             a = a.tail;
@@ -615,7 +678,13 @@ public class CodeGenerator implements AbsynVisitor {
         emitRM("ST", FP, ofpSlot, FP, "push ofp");
         emitRM("LDA", FP, ofpSlot, FP, "push frame");
         emitRM("LDA", AC, 1, PC, "load ac with ret ptr");
-        emitRMAbs("LDA", PC, entry, "call " + n.name);
+        Integer entry = funcEntries.get(n.name);
+        if (entry != null) {
+            emitRMAbs("LDA", PC, entry, "call " + n.name);
+        } else {
+            int patchLoc = emitSkip(1);
+            pendingCallPatches.computeIfAbsent(n.name, k -> new ArrayList<>()).add(patchLoc);
+        }
         emitRM("LD", FP, 0, FP, "pop frame");
     }
 
@@ -625,12 +694,20 @@ public class CodeGenerator implements AbsynVisitor {
             throw new RuntimeException("Code generation error: indexed array must be a name");
         }
         String arrName = ((IdExp) n.array).name;
-        Integer base = globalVars.get(arrName);
+        Integer base = lookupVar(arrName);
         if (base == null) {
             throw new RuntimeException("Code generation error: unknown array '" + arrName + "'");
         }
         n.index.accept(this, level);
-        emitRM("LDA", AC1, base, GP, "array base");
+
+        if (isGlobalBinding(arrName)) {
+            emitRM("LDA", AC1, base, GP, "array base");
+        } else if (isArrayParameter(arrName)) {
+            emitRM("LD", AC1, base, FP, "load array param base");
+        } else {
+            emitRM("LDA", AC1, base, FP, "array base");
+        }
+
         emitRO("ADD", AC, AC1, AC, "elem addr");
         emitRM("LD", AC, 0, AC, "load array elem");
     }

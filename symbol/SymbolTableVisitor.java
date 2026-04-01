@@ -38,6 +38,23 @@ public class SymbolTableVisitor implements AbsynVisitor {
         }
     }
 
+    private boolean sameParams(ParamList a, ParamList b) {
+        while (a != null && b != null) {
+            if (a.head == null || b.head == null) return a.head == b.head;
+            if (a.head.type.typ != b.head.type.typ) return false;
+            if (a.head.isArray != b.head.isArray) return false;
+            a = a.tail;
+            b = b.tail;
+        }
+        return a == null && b == null;
+    }
+
+    private boolean sameFunctionSignature(TableEntry e, int returnType, ParamList params) {
+        if (e == null || e.kind != TableEntry.FUNC) return false;
+        if (e.type != returnType) return false;
+        return sameParams(e.params, params);
+    }
+
     public void visit(Program n, int level) {
         table.scopePush();
 
@@ -80,10 +97,24 @@ public class SymbolTableVisitor implements AbsynVisitor {
     }
 
     public void visit(FunDecl n, int level) {
-        // insert in parent scope first
-        TableEntry funcEntry = new TableEntry(n.name, n.type.typ, n.params, n.row, n.col);
-        if (!table.insert(n.name, funcEntry)) {
-            reportError(n.row, n.col, "redefinition of function '" + n.name + "'");
+        TableEntry existing = table.lookup(n.name);
+
+        if (existing == null) {
+            TableEntry funcEntry = new TableEntry(n.name, n.type.typ, n.params, n.row, n.col);
+            funcEntry.isPrototype = false;
+            table.insert(n.name, funcEntry);
+        } else {
+            if (existing.kind != TableEntry.FUNC) {
+                reportError(n.row, n.col, "'" + n.name + "' already exists and is not a function");
+            } else if (existing.isPrototype) {
+                if (!sameFunctionSignature(existing, n.type.typ, n.params)) {
+                    reportError(n.row, n.col, "definition of function '" + n.name + "' does not match its prototype");
+                } else {
+                    existing.isPrototype = false; // upgrade prototype to definition
+                }
+            } else {
+                reportError(n.row, n.col, "redefinition of function '" + n.name + "'");
+            }
         }
 
         table.scopePush();
@@ -106,7 +137,6 @@ public class SymbolTableVisitor implements AbsynVisitor {
             symPrint(table.formatCurrentScope(d));
         }
 
-        // body
         if (n.body != null) {
             n.body.accept(this, level);
         }
@@ -122,10 +152,25 @@ public class SymbolTableVisitor implements AbsynVisitor {
     }
 
     public void visit(FunPrototype n, int level) {
-        TableEntry e = new TableEntry(n.name, n.type.typ, n.params, n.row, n.col);
-        if (!table.insert(n.name, e)) {
-            reportError(n.row, n.col, "redefinition of function '" + n.name + "'");
+        TableEntry existing = table.lookup(n.name);
+
+        if (existing == null) {
+            TableEntry e = new TableEntry(n.name, n.type.typ, n.params, n.row, n.col);
+            e.isPrototype = true;
+            table.insert(n.name, e);
+            return;
         }
+
+        if (existing.kind != TableEntry.FUNC) {
+            reportError(n.row, n.col, "'" + n.name + "' already exists and is not a function");
+            return;
+        }
+
+        if (!sameFunctionSignature(existing, n.type.typ, n.params)) {
+            reportError(n.row, n.col, "conflicting declaration of function '" + n.name + "'");
+        }
+
+        // matching prototype or matching existing definition: do nothing
     }
 
     public void visit(ParamList n, int level) {
