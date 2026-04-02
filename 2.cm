@@ -1,26 +1,19 @@
 /* 2.cm
    Valid program.
-   Tests: self-recursion, function calls, if-else, comparison,
-   multiplication, return values.
+   Tests self-recursion, function calls, if-else, and return values.
 */
 
-int fact(int n)
-{
-    if (n < 2)
-        return 1;
-    else
-        return n * fact(n - 1);
+int fact(int n) {
+  if (n < 2) return 1;
+  else return n * fact(n - 1);
 }
 
-int main(void)
-{
-    int x;
-    int y;
+void main(void) {
+  int x;
+  int y;
 
-    x = 5;
-    y = fact(x);
+  x = 5;
+  y = fact(x);
 
-    write y;
-
-    return 0;
+  output(y);
 }

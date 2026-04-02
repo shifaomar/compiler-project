@@ -1,43 +1,35 @@
 /* 3.cm
    Valid program.
-   Tests: arrays, array parameters, while-loops, nested blocks,
-   function calls, accumulation, and writes.
+   Tests global arrays, array parameters, while-loops,
+   function calls, and accumulation.
 */
 
-int sumArray(int a[], int n)
-{
-    int i;
-    int sum;
+int x[5];
 
-    i = 0;
-    sum = 0;
+int sumArray(int a[], int n) {
+  int i;
+  int sum;
 
-    while (i < n)
-    {
-        {
-            int temp;
-            temp = a[i];
-            sum = sum + temp;
-        }
-        i = i + 1;
-    }
+  i = 0;
+  sum = 0;
 
-    return sum;
+  while (i < n) {
+    sum = sum + a[i];
+    i = i + 1;
+  }
+
+  return sum;
 }
 
-int main(void)
-{
-    int x[5];
-    int result;
+void main(void) {
+  int result;
 
-    x[0] = 4;
-    x[1] = 1;
-    x[2] = 3;
-    x[3] = 2;
-    x[4] = 10;
+  x[0] = 4;
+  x[1] = 1;
+  x[2] = 3;
+  x[3] = 2;
+  x[4] = 10;
 
-    result = sumArray(x, 5);
-    write result;
-
-    return 0;
+  result = sumArray(x, 5);
+  output(result);
 }

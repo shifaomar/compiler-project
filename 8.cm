@@ -1,23 +1,20 @@
 /* 8.cm
-   Valid for scanning/parsing/semantic analysis, but should cause
-   a runtime error.
-   Tests: runtime array index out of range.
+   Valid program that should compile but trigger
+   a runtime array bounds error.
+   Tests global arrays and bounds checking.
 */
 
-int main(void)
-{
-    int a[3];
-    int i;
+int a[3];
 
-    i = 0;
-    while (i < 3)
-    {
-        a[i] = i + 1;
-        i = i + 1;
-    }
+void main(void) {
+  int i;
 
-    write a[1];
-    write a[3];
+  i = 0;
+  while (i < 3) {
+    a[i] = i + 1;
+    i = i + 1;
+  }
 
-    return 0;
+  output(a[1]);
+  output(a[3]);
 }
