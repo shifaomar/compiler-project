@@ -7,10 +7,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.ArrayList;
 import java.util.List;
-/**
- * TM code generation. Person 2: control flow, functions, calls, compound scopes, full OpExp.
- * Person 1 (Athina): prelude, I/O, initial arithmetic tests — merged with Person 2.
- */
+
+
 public class CodeGenerator implements AbsynVisitor {
     private final PrintWriter out;
 
@@ -20,7 +18,7 @@ public class CodeGenerator implements AbsynVisitor {
     private final Map<String, List<Integer>> pendingCallPatches = new HashMap<>();
     private final Map<String, Boolean> globalArrayFlags = new HashMap<>();
     private final Deque<Map<String, Boolean>> arrayFlagStack = new ArrayDeque<>();
-    
+    private final Deque<Map<String, Boolean>> arrayParamStack = new ArrayDeque<>();
 
     private static final int AC = 0;
     private static final int AC1 = 1;
@@ -131,40 +129,46 @@ public class CodeGenerator implements AbsynVisitor {
         emitRO("SUB", AC, AC1, AC, "left - right");
     }
 
-    /** AC has (left - right); leave 0 or 1 in AC */
+    
     private void emitBoolFromDiff(int op) {
-        int skip = emitSkip(1);
-        emitRM("LDC", AC, 0, 0, "cmp false");
-        int skipMerge = emitSkip(1);
+        int trueJump = emitSkip(1);
+
+        // false case
+        emitRM("LDC", AC, 0, 0, "false");
+        int endJump = emitSkip(1);
+
         int trueLabel = emitLoc;
-        emitRM("LDC", AC, 1, 0, "cmp true");
-        int merge = emitLoc;
-        emitBackup(skipMerge);
-        emitJumpToAbs(merge, "cmp merge");
-        emitRestore();
-        emitBackup(skip);
+        emitRM("LDC", AC, 1, 0, "true");
+
+        int endLabel = emitLoc;
+
+        // patch true jump
+        emitBackup(trueJump);
         switch (op) {
             case OpExp.EQ:
-                emitRM("JEQ", AC, trueLabel - (emitLoc + 1), PC, "eq");
+                emitRM("JEQ", AC, trueLabel - (trueJump + 1), PC, "eq");
                 break;
             case OpExp.NE:
-                emitRM("JNE", AC, trueLabel - (emitLoc + 1), PC, "ne");
+                emitRM("JNE", AC, trueLabel - (trueJump + 1), PC, "ne");
                 break;
             case OpExp.LT:
-                emitRM("JLT", AC, trueLabel - (emitLoc + 1), PC, "lt");
+                emitRM("JLT", AC, trueLabel - (trueJump + 1), PC, "lt");
                 break;
             case OpExp.LE:
-                emitRM("JLE", AC, trueLabel - (emitLoc + 1), PC, "le");
+                emitRM("JLE", AC, trueLabel - (trueJump + 1), PC, "le");
                 break;
             case OpExp.GT:
-                emitRM("JGT", AC, trueLabel - (emitLoc + 1), PC, "gt");
+                emitRM("JGT", AC, trueLabel - (trueJump + 1), PC, "gt");
                 break;
             case OpExp.GE:
-                emitRM("JGE", AC, trueLabel - (emitLoc + 1), PC, "ge");
+                emitRM("JGE", AC, trueLabel - (trueJump + 1), PC, "ge");
                 break;
-            default:
-                throw new RuntimeException("Code generation error: bad compare op");
         }
+        emitRestore();
+
+        // patch end jump
+        emitBackup(endJump);
+        emitJumpToAbs(endLabel, "end");
         emitRestore();
     }
 
@@ -233,7 +237,7 @@ public class CodeGenerator implements AbsynVisitor {
     }
 
     private boolean isArrayParameter(String name) {
-        for (Map<String, Boolean> m : arrayFlagStack) {
+        for (Map<String, Boolean> m : arrayParamStack) {
             if (m.containsKey(name)) {
                 return m.get(name);
             }
@@ -493,16 +497,21 @@ public class CodeGenerator implements AbsynVisitor {
         scopeStack.push(frame);
         Map<String, Boolean> frameFlags = new HashMap<>();
         arrayFlagStack.push(frameFlags);
+        Map<String, Boolean> paramFlags = new HashMap<>();
+        arrayParamStack.push(paramFlags);
 
         int pOff = -2;
         ParamList pl = n.params;
         while (pl != null && pl.head != null) {
             frame.put(pl.head.name, pOff);
             frameFlags.put(pl.head.name, pl.head.isArray);
+            paramFlags.put(pl.head.name, pl.head.isArray);
             pOff--;
             pl = pl.tail;
         }
-        localOffset = pOff;
+
+
+        localOffset = pOff - 4;
 
         if (n.declarations != null) {
             DeclList dl = n.declarations;
@@ -512,8 +521,22 @@ public class CodeGenerator implements AbsynVisitor {
                     localOffset--;
                     frame.put(vd.name, localOffset);
                     frameFlags.put(vd.name, false);
+                    paramFlags.put(vd.name, false);
                 } else if (dl.head instanceof ArrayDecl) {
-                    throw new RuntimeException("Code generation error: array locals not implemented (Person 3)");
+                    ArrayDecl ad = (ArrayDecl) dl.head;
+                    int size = ad.size;
+
+                    // allocate space: size slot + elements
+                    localOffset -= (size + 1);
+
+                    int base = localOffset + 1;  // first element location
+
+                    frame.put(ad.name, base);
+                    frameFlags.put(ad.name, true);
+
+                    // store size at base - 1
+                    emitRM("LDC", AC, size, 0, "array size");
+                    emitRM("ST", AC, base - 1, FP, "store array size");
                 }
                 dl = dl.tail;
             }
@@ -568,6 +591,7 @@ public class CodeGenerator implements AbsynVisitor {
 
         scopeStack.push(new HashMap<>());
         arrayFlagStack.push(new HashMap<>());
+        arrayParamStack.push(new HashMap<>());
         if (n.declarations != null) {
             DeclList dl = n.declarations;
             while (dl != null && dl.head != null) {
@@ -576,8 +600,21 @@ public class CodeGenerator implements AbsynVisitor {
                     localOffset--;
                     scopeStack.peek().put(vd.name, localOffset);
                     arrayFlagStack.peek().put(vd.name, false);
+                    arrayParamStack.peek().put(vd.name, false);
                 } else if (dl.head instanceof ArrayDecl) {
-                    throw new RuntimeException("Code generation error: array in compound not implemented (Person 3)");
+                        ArrayDecl ad = (ArrayDecl) dl.head;
+                        int size = ad.size;
+
+                        localOffset -= (size + 1);
+
+                        int base = localOffset + 1;
+
+                        scopeStack.peek().put(ad.name, base);
+                        arrayFlagStack.peek().put(ad.name, true);
+                        arrayParamStack.peek().put(ad.name, false);
+
+                        emitRM("LDC", AC, size, 0, "array size");
+                        emitRM("ST", AC, base - 1, FP, "store array size");
                 }
                 dl = dl.tail;
             }
@@ -588,6 +625,7 @@ public class CodeGenerator implements AbsynVisitor {
         int innerLocals = scopeStack.peek().size();
         scopeStack.pop();
         arrayFlagStack.pop();
+        arrayParamStack.pop();
         localOffset += innerLocals;
     }
 
@@ -716,7 +754,7 @@ public class CodeGenerator implements AbsynVisitor {
 
     private void emitCallOutput() {
         int frame = 4;
-        emitRM("ST", AC, -2, FP, "output arg");
+        emitRM("ST", AC, -(frame + 2), FP, "output arg");
         emitRM("ST", FP, -frame, FP, "push ofp");
         emitRM("LDA", FP, -frame, FP, "push frame");
         emitRM("LDA", AC, 1, PC, "load ac with ret ptr");
@@ -753,6 +791,10 @@ public class CodeGenerator implements AbsynVisitor {
         }
 
         int argc = countArgs(n.args);
+
+        // put args well below temp-expression slots so they do not get overwritten
+        int argBase = localOffset - 20;
+
         ExpList a = n.args;
         int i = 0;
         while (a != null && a.head != null) {
@@ -775,15 +817,18 @@ public class CodeGenerator implements AbsynVisitor {
                 a.head.accept(this, level);
             }
 
-            emitRM("ST", AC, localOffset - argc - i, FP, "arg " + i);
+            emitRM("ST", AC, argBase - i, FP, "arg " + i);
             i++;
             a = a.tail;
         }
 
-        int ofpSlot = argc > 0 ? (localOffset - argc + 2) : (localOffset - 1);
+        // old FP goes 2 slots above arg0 so callee sees arg0 at -2(FP), arg1 at -3(FP), ...
+        int ofpSlot = argBase + 2;
+
         emitRM("ST", FP, ofpSlot, FP, "push ofp");
         emitRM("LDA", FP, ofpSlot, FP, "push frame");
         emitRM("LDA", AC, 1, PC, "load ac with ret ptr");
+
         Integer entry = funcEntries.get(n.name);
         if (entry != null) {
             emitRMAbs("LDA", PC, entry, "call " + n.name);
@@ -791,6 +836,7 @@ public class CodeGenerator implements AbsynVisitor {
             int patchLoc = emitSkip(1);
             pendingCallPatches.computeIfAbsent(n.name, k -> new ArrayList<>()).add(patchLoc);
         }
+
         emitRM("LD", FP, 0, FP, "pop frame");
     }
 
